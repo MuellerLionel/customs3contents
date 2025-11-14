@@ -58,11 +58,8 @@ def setup_local_file_handler():
     # We need to access the web app, so we'll use a delayed approach
     def add_handler_after_start(server_app):
         class LocalFileHandler(RequestHandler):
-            # Disable CSRF check for file downloads
-            def check_xsrf_cookie(self):
-                if self.request.method == "GET":
-                    return
-                return super().check_xsrf_cookie()
+            # CSRF protection is enabled by default via RequestHandler
+            # JupyterLab includes _xsrf token in download URLs, so this is secure
             
             def get(self, file_path):
                 try:
@@ -137,10 +134,8 @@ def patched_init_webapp(self, *args, **kwargs):
         local_dir = "/home/jovyan/work"
         if os.path.exists(local_dir):
             class LocalFileHandler(RequestHandler):
-                def check_xsrf_cookie(self):
-                    if self.request.method == "GET":
-                        return
-                    return super().check_xsrf_cookie()
+                # CSRF protection is enabled by default via RequestHandler
+                # JupyterLab includes _xsrf token in download URLs, so this is secure
                 
                 def get(self, file_path):
                     try:

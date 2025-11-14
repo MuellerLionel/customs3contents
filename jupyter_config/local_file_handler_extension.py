@@ -28,12 +28,8 @@ def _load_jupyter_server_extension(server_app):
     if os.path.exists(local_dir):
         # Create a custom handler that serves files from the local directory
         class LocalFileHandler(RequestHandler):
-            # Disable CSRF check for file downloads
-            def check_xsrf_cookie(self):
-                # Allow GET requests without CSRF token for file downloads
-                if self.request.method == "GET":
-                    return
-                return super().check_xsrf_cookie()
+            # CSRF protection is enabled by default via RequestHandler
+            # JupyterLab includes _xsrf token in download URLs, so this is secure
             
             def get(self, file_path):
                 try:
