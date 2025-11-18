@@ -245,6 +245,46 @@ def _load_jupyter_server_extension(server_app):
     )
 
 
+def _ensure_handler_priority(server_app):
+    """
+    Ensure our handler is at the front of the handlers list.
+    This should be called after all extensions are loaded to ensure our handler takes precedence.
+    """
+    try:
+        # Get configuration
+        config = S3ContentsLocalDownloadFixConfig(config=server_app.config)
+        url_prefix = config.url_prefix.rstrip('/') + '/'
+        pattern = url_prefix.rstrip('/') + r"/(.*)"
+        
+        default_host = r".*"
+        
+        if hasattr(server_app.web_app, 'handlers') and default_host in server_app.web_app.handlers:
+            existing_handlers = list(server_app.web_app.handlers[default_host])
+            
+            # Find our handler
+            our_handler = None
+            for p, h in existing_handlers:
+                if p == pattern:
+                    our_handler = (p, h)
+                    break
+            
+            if our_handler:
+                # Remove our handler from wherever it is
+                existing_handlers = [(p, h) for p, h in existing_handlers if p != pattern]
+                # Insert at the very front
+                existing_handlers.insert(0, our_handler)
+                server_app.web_app.handlers[default_host] = existing_handlers
+                server_app.log.info(
+                    f"s3contents_local_download_fix: Moved handler to position 0. "
+                    f"Total handlers: {len(existing_handlers)}"
+                )
+    except Exception as e:
+        server_app.log.warning(
+            f"s3contents_local_download_fix: Error ensuring handler priority: {e}",
+            exc_info=True
+        )
+
+
 # Alias for backward compatibility and entry point
 load_jupyter_server_extension = _load_jupyter_server_extension
 

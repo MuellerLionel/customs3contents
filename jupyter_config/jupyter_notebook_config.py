@@ -56,6 +56,7 @@ c.ServerApp.jpserver_extensions = {
 import jupyter_server.serverapp
 
 _original_init_webapp = jupyter_server.serverapp.ServerApp.init_webapp
+_original_start = jupyter_server.serverapp.ServerApp.start
 
 def _patched_init_webapp(self, *args, **kwargs):
     """Patched init_webapp that loads our extension."""
@@ -68,4 +69,18 @@ def _patched_init_webapp(self, *args, **kwargs):
         self.log.warning(f"Failed to load s3contents_local_download_fix extension: {e}")
     return result
 
+def _patched_start(self, *args, **kwargs):
+    """Patched start that ensures our handler is registered last (highest priority)."""
+    # Re-register our handler after all other handlers are loaded
+    # This ensures it takes precedence over JupyterLab's /files/ handler
+    try:
+        import s3contents_local_download_fix
+        # Re-register the handler to ensure it's at the front
+        s3contents_local_download_fix._ensure_handler_priority(self)
+    except Exception as e:
+        self.log.warning(f"Failed to ensure handler priority: {e}")
+    
+    return _original_start(self, *args, **kwargs)
+
 jupyter_server.serverapp.ServerApp.init_webapp = _patched_init_webapp
+jupyter_server.serverapp.ServerApp.start = _patched_start
