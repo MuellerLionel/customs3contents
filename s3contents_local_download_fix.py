@@ -182,15 +182,66 @@ def _load_jupyter_server_extension(server_app):
     
     # Register the handler
     # The pattern matches the URL prefix and captures the file path
+    # In JupyterHub, base_url is automatically handled by Tornado, so our pattern
+    # should be relative to base_url (e.g., /files/local/ not /user/username/files/local/)
     pattern = url_prefix.rstrip('/') + r"/(.*)"
-    server_app.web_app.add_handlers(
-        r".*",
-        [(pattern, LocalFileHandler)]
-    )
+    
+    # Get the application's default host pattern handlers
+    # We need to insert our handler early to ensure it takes precedence
+    # over JupyterLab's default /files/ handler
+    default_host = r".*"
+    
+    try:
+        # Check if handlers already exist for this host pattern
+        if hasattr(server_app.web_app, 'handlers') and default_host in server_app.web_app.handlers:
+            # Get existing handlers - handlers is a list of (pattern, handler_class) tuples
+            existing_handlers = list(server_app.web_app.handlers[default_host])
+            
+            # Remove any existing handler for our exact pattern to avoid duplicates
+            existing_handlers = [(p, h) for p, h in existing_handlers if p != pattern]
+            
+            # Insert our handler at the front of the list
+            # Tornado checks handlers in order, so earlier = higher priority
+            existing_handlers.insert(0, (pattern, LocalFileHandler))
+            server_app.web_app.handlers[default_host] = existing_handlers
+            
+            server_app.log.info(
+                f"s3contents_local_download_fix: Inserted handler at position 0. "
+                f"Total handlers for {default_host}: {len(existing_handlers)}"
+            )
+        else:
+            # No existing handlers, just add ours
+            server_app.web_app.add_handlers(
+                default_host,
+                [(pattern, LocalFileHandler)]
+            )
+            server_app.log.info(
+                f"s3contents_local_download_fix: Added new handler for pattern: {pattern}"
+            )
+    except Exception as e:
+        server_app.log.error(
+            f"s3contents_local_download_fix: Error registering handler: {e}",
+            exc_info=True
+        )
+        # Fallback: try simple add_handlers
+        try:
+            server_app.web_app.add_handlers(
+                default_host,
+                [(pattern, LocalFileHandler)]
+            )
+            server_app.log.info(
+                f"s3contents_local_download_fix: Registered handler using fallback method"
+            )
+        except Exception as e2:
+            server_app.log.error(
+                f"s3contents_local_download_fix: Failed to register handler: {e2}",
+                exc_info=True
+            )
+            return
     
     server_app.log.info(
         f"s3contents_local_download_fix: Extension loaded successfully. "
-        f"Serving files from {local_dir} at {url_prefix}"
+        f"Serving files from {local_dir} at {url_prefix} (pattern: {pattern})"
     )
 
 
